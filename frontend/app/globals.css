@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Sora:wght@600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #EEF0F5;
+  --surface: #F8F9FC;
+  --accent: #F59E0B;
+  --ink: #1E293B;
+  --ink-soft: #64748B;
+  --safe: #10B981;
+  --warn: #F97316;
+  --danger: #EF4444;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background-color: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display { font-family: 'Sora', sans-serif; }
+
+/* Neumorphic helpers */
+.neu { box-shadow: 6px 6px 12px #d1d4dc, -6px -6px 12px #ffffff; }
+.neu-sm { box-shadow: 3px 3px 7px #d1d4dc, -3px -3px 7px #ffffff; }
+.neu-inset { box-shadow: inset 4px 4px 8px #d1d4dc, inset -4px -4px 8px #ffffff; }
+
+/* Glass card */
+.glass {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.08);
+}
+
+/* Pill button */
+.btn-pill {
+  border-radius: 9999px;
+  padding: 0.625rem 1.5rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, #F59E0B, #F97316);
+  color: white;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.35);
+}
+
+.btn-accent:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(245, 158, 11, 0.45); }
+.btn-accent:active { transform: translateY(0); }
+
+/* Risk badge */
+.risk-critical { background: linear-gradient(135deg, #EF4444, #DC2626); color: white; }
+.risk-high { background: linear-gradient(135deg, #F97316, #EA580C); color: white; }
+.risk-moderate { background: linear-gradient(135deg, #F59E0B, #D97706); color: white; }
+.risk-low { background: linear-gradient(135deg, #3B82F6, #2563EB); color: white; }
+.risk-safe { background: linear-gradient(135deg, #10B981, #059669); color: white; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+
+/* Animated gradient blob bg */
+.blob-bg {
+  position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none;
+}
+.blob {
+  position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.18;
+  animation: float 12s ease-in-out infinite;
+}
+@keyframes float {
+  0%,100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-30px) scale(1.05); }
+}

@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fahin-fl-server
+  namespace: fahin
+spec:
+  replicas: 1  # FL server must be singleton
+  selector:
+    matchLabels:
+      app: fahin-fl-server
+  template:
+    metadata:
+      labels:
+        app: fahin-fl-server
+    spec:
+      containers:
+      - name: fl-server
+        image: ghcr.io/your-org/fahin-api:latest
+        command: ["python", "app/services/federated/fl_server.py", "--rounds", "20", "--min_clients", "3"]
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - secretRef:
+            name: fahin-secrets
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        volumeMounts:
+        - name: fl-weights
+          mountPath: /app/fl_weights
+      volumes:
+      - name: fl-weights
+        persistentVolumeClaim:
+          claimName: fahin-fl-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fahin-fl-svc
+  namespace: fahin
+spec:
+  selector:
+    app: fahin-fl-server
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP  # Internal only — hospitals connect via VPN/tunnel
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fahin-fl-pvc
+  namespace: fahin
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 10Gi
