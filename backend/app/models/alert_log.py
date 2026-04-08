@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.db.session import Base
 
 class AlertLog(Base):
-    __tablename__ = "alert_logs"
+    __tablename__ = "f_alert_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     prediction_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

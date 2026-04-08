@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
 
 class PrescriptionRecord(Base):
-    __tablename__ = "prescription_records"
+    __tablename__ = "f_prescription_records"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

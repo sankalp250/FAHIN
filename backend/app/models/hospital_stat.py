@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
 
 class HospitalStat(Base):
-    __tablename__ = "hospital_stats"
+    __tablename__ = "f_hospital_stats"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     hospital_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

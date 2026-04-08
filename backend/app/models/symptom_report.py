@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
 
 class SymptomReport(Base):
-    __tablename__ = "symptom_reports"
+    __tablename__ = "f_symptom_reports"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

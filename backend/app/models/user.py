@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
 
 class User(Base):
-    __tablename__ = "users"
+    __tablename__ = "f_users"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     role: Mapped[str] = mapped_column(String(20), nullable=False)

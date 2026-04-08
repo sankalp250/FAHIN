@@ -39,7 +39,7 @@ async def seed():
         for i in range(50):
             sector = random.choice(SECTORS)
             disease = random.choice(DISEASES)
-            syms = random.sample(SYMPTOMS_MAP[disease], k=random.randint(2,4))
+            syms = random.sample(SYMPTOMS_MAP[disease], k=min(random.randint(2,4), len(SYMPTOMS_MAP[disease])))
             sr = SymptomReport(
                 user_id=citizen.id, symptoms=syms, severity=random.randint(3,8),
                 duration_days=random.randint(1,5), city_sector=sector, city="Gurugram",

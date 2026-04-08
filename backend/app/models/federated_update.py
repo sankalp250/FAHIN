@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
 
 class FederatedUpdate(Base):
-    __tablename__ = "federated_updates"
+    __tablename__ = "f_federated_updates"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     hospital_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
