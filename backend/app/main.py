@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("🚀 Starting FAHIN API server...")
+    logger.info("Starting FAHIN API server...")
     ModelRegistry.load_all_models()
-    logger.info("✅ ML models loaded.")
+    logger.info("ML models loaded.")
     yield
     logger.info("Shutting down FAHIN API server.")
 

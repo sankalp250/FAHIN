@@ -5,12 +5,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
 
+from pgvector.sqlalchemy import Vector
+
 class SymptomReport(Base):
     __tablename__ = "f_symptom_reports"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     symptoms: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(768))
     severity: Mapped[int | None] = mapped_column(SmallInteger)
     duration_days: Mapped[int | None] = mapped_column(SmallInteger)
     city_sector: Mapped[str] = mapped_column(String(50), nullable=False)

@@ -1,0 +1,15 @@
+{
+  "n_features": 3,
+  "hidden_size": 128,
+  "num_layers": 2,
+  "seq_len": 30,
+  "forecast_horizon": 7,
+  "best_val_loss": 0.008159128111660996,
+  "epochs_trained": 50,
+  "normalisation_mins": [
+    0.0
+  ],
+  "normalisation_maxs": [
+    22229.0
+  ]
+}

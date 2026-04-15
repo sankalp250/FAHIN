@@ -25,10 +25,13 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
 
-    # OpenAI (for Medical Knowledge Agent)
+    # Google Gemini
+    GEMINI_API_KEY: str = ""
+    LLM_MODEL: str = "gemini-1.5-flash"
+    EMBEDDING_MODEL: str = "models/text-embedding-004"
+
+    # OpenAI (Legacy fallback / Not used)
     OPENAI_API_KEY: str = ""
-    LLM_MODEL: str = "gpt-4o-mini"
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
 
     # Flower FL Server
     FLOWER_SERVER_ADDRESS: str = "0.0.0.0:8080"

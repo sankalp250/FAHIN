@@ -42,7 +42,7 @@ export default function CityHeatmap({ sectors = GURUGRAM_SECTORS }: CityHeatmapP
     // Dynamic import to avoid SSR issues with Leaflet
     const initMap = async () => {
       const L = (await import("leaflet")).default;
-      await import("leaflet/dist/leaflet.css");
+      // CSS is imported in layout.tsx globally
 
       if ((mapRef.current as any)._leaflet_id) return; // already initialised
 

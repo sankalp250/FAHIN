@@ -18,3 +18,4 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     last_active: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+                   

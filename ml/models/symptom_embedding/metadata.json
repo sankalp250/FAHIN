@@ -1,0 +1,1 @@
+{"base_model": "dmis-lab/biobert-base-cased-v1.2", "embedding_dim": 768, "best_loss": 0.44549973889604794, "epochs": 10}

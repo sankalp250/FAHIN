@@ -1,0 +1,15 @@
+{
+  "input_dim": 768,
+  "n_training_samples": 10000,
+  "threshold_sigma": 3.0,
+  "autoencoder": {
+    "best_val_loss": 0.0013578541402239352,
+    "anomaly_threshold": 0.0016621676040813327,
+    "error_mean": 0.0013471456477418542,
+    "error_std": 0.00010500731877982616
+  },
+  "isolation_forest": {
+    "contamination": 0.05,
+    "n_estimators": 200
+  }
+}

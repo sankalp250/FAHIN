@@ -1,18 +1,29 @@
 """Symptom Intelligence Agent — embeds symptoms and finds disease candidates."""
 import logging
 from typing import Any
-from langchain_openai import ChatOpenAI
-from langchain.schema import SystemMessage, HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import SystemMessage, HumanMessage
+from app.services.ml.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 
 class SymptomIntelligenceAgent:
-    def __init__(self, llm: ChatOpenAI):
+    def __init__(self, llm: ChatGoogleGenerativeAI):
         self.llm = llm
 
     async def analyze(self, symptoms: list[str], sector: str, city: str) -> dict[str, Any]:
         symptom_text = ", ".join(symptoms) if symptoms else "none"
+        
+        # 1. Generate Embedding (BioBERT)
+        embedding = None
+        if symptoms:
+            try:
+                embedding = ModelRegistry.embed_symptoms(symptoms)
+            except Exception as e:
+                logger.warning(f"Symptom embedding failed: {e}")
+
+        # 2. Get Candidates & Clusters (Gemini)
         try:
             response = await self.llm.ainvoke([
                 SystemMessage(content=(
@@ -28,8 +39,8 @@ class SymptomIntelligenceAgent:
             return {
                 "candidates": data.get("candidates", ["Unknown"]),
                 "clusters": data.get("clusters", []),
-                "embedding": None,
+                "embedding": embedding,
             }
         except Exception as e:
             logger.warning(f"SymptomIntelligence LLM call failed: {e}")
-            return {"candidates": ["Unknown"], "clusters": [], "embedding": None}
+            return {"candidates": ["Unknown"], "clusters": [], "embedding": embedding}

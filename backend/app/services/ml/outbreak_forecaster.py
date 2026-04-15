@@ -1,83 +1,88 @@
-"""LSTM outbreak forecast inference wrapper."""
+"""
+FAHIN — Outbreak Forecast Service
+Wraps the LSTM model for case count prediction.
+"""
+import torch
+import torch.nn as nn
 import logging
-import numpy as np
-from typing import Optional
-from pathlib import Path
 import json
-import os
+from pathlib import Path
+import numpy as np
 
 logger = logging.getLogger(__name__)
-MODEL_DIR = Path(os.getenv("MODEL_DIR", "../ml/models"))
 
+class OutbreakLSTM(nn.Module):
+    def __init__(
+        self,
+        n_features: int = 3,
+        hidden_size: int = 128,
+        num_layers: int = 2,
+        dropout: float = 0.2,
+        forecast_horizon: int = 7,
+    ):
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=n_features,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout if num_layers > 1 else 0,
+            batch_first=True,
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_size, 64),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(64, forecast_horizon),
+            nn.ReLU(),
+        )
+    
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        lstm_out, _ = self.lstm(x)
+        last_hidden = lstm_out[:, -1, :]
+        return self.fc(last_hidden)
 
-class OutbreakForecaster:
-    _model = None
-    _metadata = None
+class OutbreakForecasterService:
+    def __init__(self, model_path: Path):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        with open(model_path / "metadata.json") as f:
+            self.metadata = json.load(f)
+            
+        self.model = OutbreakLSTM(
+            n_features=self.metadata["n_features"],
+            hidden_size=self.metadata["hidden_size"],
+            num_layers=self.metadata["num_layers"],
+            forecast_horizon=self.metadata["forecast_horizon"]
+        )
+        
+        state_dict = torch.load(model_path / "lstm.pt", map_location=self.device)
+        self.model.load_state_dict(state_dict)
+        self.model.to(self.device)
+        self.model.eval()
+        
+        self.mins = np.array(self.metadata["normalisation_mins"])
+        self.maxs = np.array(self.metadata["normalisation_maxs"])
+        logger.info(f"Outbreak Forecaster loaded on {self.device}")
 
-    @classmethod
-    def load(cls):
-        try:
-            import torch
-            from app.services.ml.model_registry import ModelRegistry
-            path = MODEL_DIR / "outbreak_forecast"
-            if not (path / "lstm.pt").exists():
-                logger.warning("LSTM model not found — using heuristic forecaster")
-                return
-            # Lazy import to avoid torch dependency at startup if not available
-            logger.info("LSTM forecaster loaded")
-        except Exception as e:
-            logger.warning(f"LSTM load failed: {e}")
-
-    @classmethod
-    def forecast(cls, daily_counts: list[float], horizon: int = 7) -> dict:
+    def predict(self, history_data: list[list[float]]) -> list[float]:
         """
-        Forecast next `horizon` days of case counts.
-        Falls back to exponential smoothing if LSTM not loaded.
+        Predict case counts for the next 7 days.
+        Input: list of 30 days of features [symptom_count, pharmacy_sales, hospital_admissions]
         """
-        if len(daily_counts) < 3:
-            daily_counts = [0.0] * 30
-
-        if cls._model is not None:
-            return cls._lstm_forecast(daily_counts, horizon)
-        return cls._heuristic_forecast(daily_counts, horizon)
-
-    @classmethod
-    def _heuristic_forecast(cls, counts: list[float], horizon: int) -> dict:
-        """Exponential smoothing as fallback."""
-        alpha = 0.3
-        smoothed = counts[-1]
-        trend = (counts[-1] - counts[-min(7, len(counts))]) / max(1, min(7, len(counts)))
-
-        forecasted = []
-        for i in range(1, horizon + 1):
-            val = max(0.0, smoothed + trend * i)
-            forecasted.append(round(val, 1))
-
-        peak_day = int(np.argmax(forecasted)) + 1
-        peak_value = max(forecasted)
-        growth_rate = trend / max(smoothed, 1)
-
-        return {
-            "forecast_7d": forecasted,
-            "peak_day": peak_day,
-            "peak_value": peak_value,
-            "trend": "rising" if growth_rate > 0.05 else "falling" if growth_rate < -0.05 else "stable",
-            "growth_rate": round(growth_rate, 4),
-        }
-
-    @classmethod
-    def _lstm_forecast(cls, counts: list[float], horizon: int) -> dict:
-        """Actual LSTM inference (called when model is loaded)."""
-        import torch
-        seq = np.array(counts[-30:], dtype=np.float32)
-        seq = np.pad(seq, (max(0, 30 - len(seq)), 0))
-        x = torch.tensor(seq).unsqueeze(0).unsqueeze(-1).unsqueeze(-1).expand(-1, -1, 3)
+        # History data should be (30, 3)
+        data = np.array(history_data)
+        
+        # Normalise using metadata from training
+        data_scaled = (data - self.mins) / (self.maxs - self.mins + 1e-8)
+        
+        x = torch.tensor(data_scaled, dtype=torch.float32).unsqueeze(0).to(self.device)
+        
         with torch.no_grad():
-            pred = cls._model(x).squeeze().numpy()
-        return {
-            "forecast_7d": [round(float(v), 1) for v in pred],
-            "peak_day": int(np.argmax(pred)) + 1,
-            "peak_value": float(pred.max()),
-            "trend": "rising",
-            "growth_rate": float((pred[-1] - pred[0]) / max(pred[0], 1)),
-        }
+            pred = self.model(x)
+        
+        # Denormalise the first feature (case counts)
+        # Note: In training y = data[..., 0], so we denormalise using mins[0] and maxs[0]
+        pred_scaled = pred.squeeze(0).cpu().numpy()
+        pred_final = pred_scaled * (self.maxs[0] - self.mins[0] + 1e-8) + self.mins[0]
+        
+        return pred_final.tolist()

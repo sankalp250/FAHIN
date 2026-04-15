@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Building2, Upload, Shield, Activity, Database, CheckCircle2, Clock, Users } from "lucide-react";
+import { api } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthContext";
 
 const HOSPITALS = [
   { name:"Medanta Hospital",      sector:"Sector-38", status:"active", fl_round:14, accuracy:0.934, samples:1250, dp:"ε=1.0", lastSync:"5m ago"  },
@@ -20,8 +23,16 @@ const STATS = [
 ];
 
 export default function AdminPage() {
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const [tab, setTab] = useState<"hospitals"|"stats"|"fl">("hospitals");
   const [submitForm, setSubmitForm] = useState({ disease:"Dengue", admissions:"", icu:"", sector:"Sector-45" });
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+    }
+  }, [user, authLoading]);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -137,7 +148,24 @@ export default function AdminPage() {
                     onChange={e=>setSubmitForm(p=>({...p,[k]:e.target.value}))} />
                 </div>
               ))}
-              <button className="btn-pill w-full py-3 text-sm flex items-center justify-center gap-2"
+              <button 
+                onClick={async () => {
+                  try {
+                    await api.hospitals.submitStats({
+                      disease: submitForm.disease,
+                      new_admissions: parseInt(submitForm.admissions),
+                      icu_occupied: parseInt(submitForm.icu),
+                      city_sector: user?.city_sector || "Sector-45",
+                      report_date: new Date().toISOString().split('T')[0]
+                    });
+                    alert("Stats submitted successfully");
+                    setSubmitForm({ ...submitForm, admissions: "", icu: "" });
+                  } catch (err) {
+                    console.error(err);
+                    alert("Submission failed");
+                  }
+                }}
+                className="btn-pill w-full py-3 text-sm flex items-center justify-center gap-2"
                 style={{background:"linear-gradient(135deg,#F59E0B,#F97316)",color:"#fff",boxShadow:"0 4px 15px rgba(245,158,11,0.35)",borderRadius:"9999px"}}>
                 <Upload size={14} /> Submit Stats
               </button>

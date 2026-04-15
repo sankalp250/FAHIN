@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     symptoms, predictions, pharmacy, hospitals,
     alerts, federated, prescriptions, agents, auth,
+    knowledge,
 )
 
 api_router = APIRouter()
@@ -16,3 +17,4 @@ api_router.include_router(federated.router,     prefix="/federated",     tags=["
 api_router.include_router(prescriptions.router, prefix="/prescriptions", tags=["Prescriptions"])
 api_router.include_router(agents.router,        prefix="/agents",        tags=["Agents"])
 api_router.include_router(auth.router,          prefix="/auth",          tags=["Auth"])
+api_router.include_router(knowledge.router,     prefix="/knowledge",     tags=["Medical Knowledge"])

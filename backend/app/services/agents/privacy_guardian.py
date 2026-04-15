@@ -5,20 +5,28 @@ import logging
 logger = logging.getLogger(__name__)
 
 PII_PATTERNS = [
-    re.compile(r"\b[A-Z][a-z]+\s+[A-Z][a-z]+\b"),           # Names
-    re.compile(r"\b[6-9]\d{9}\b"),                             # Indian phone numbers
-    re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b"),        # US phone
-    re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),  # Email
-    re.compile(r"\b\d{6}\b"),                                  # PIN code
-    re.compile(r"\b(house|flat|plot|apartment|door)\s+no\.?\s*\d+\b", re.I),
+    re.compile(r"\b[A-Z][a-z]+\s+[A-Z][a-z]+\b"),                           # Names (Approximate)
+    re.compile(r"\b[6-9]\d{9}\b"),                                         # Indian phone numbers
+    re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b"),                      # US phone numbers
+    re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),    # Email
+    re.compile(r"\b\d{6}\b"),                                              # PIN code / Postal code
+    re.compile(r"\b\d{4}\s\d{4}\s\d{4}\b"),                                # Aadhar card (India)
+    re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b"),                                 # PAN card (India)
+    re.compile(r"\b(house|flat|plot|apartment|door|street|road|lane)\s+no\.?\s*\d+\b", re.I),
+    re.compile(r"\b(dob|born|birthdate|date of birth)\s*[:\-]?\s*\d{2}[/\-]\d{2}[/\-]\d{4}\b", re.I),
 ]
 
 MEDICAL_SAFE_WORDS = {
-    "fever","headache","cough","cold","pain","rash","fatigue","nausea","vomiting",
-    "diarrhoea","chills","sweating","breathlessness","joint_pain","body_aches",
-    "sore_throat","runny_nose","congestion","sneezing","itching","dizziness",
-    "high_fever","mild_fever","muscle_pain","back_pain","chest_pain","loss_of_appetite",
-    "skin_rash","yellowish_skin","dark_urine","abdominal_pain","weakness",
+    # Core Symptoms
+    "fever", "headache", "cough", "cold", "pain", "rash", "fatigue", "nausea", "vomiting",
+    "diarrhoea", "chills", "sweating", "breathlessness", "joint_pain", "body_aches",
+    "sore_throat", "runny_nose", "congestion", "sneezing", "itching", "dizziness",
+    "high_fever", "mild_fever", "muscle_pain", "back_pain", "chest_pain", "loss_of_appetite",
+    "skin_rash", "yellowish_skin", "dark_urine", "abdominal_pain", "weakness",
+    # Additional Symptoms
+    "constipation", "bloating", "weight_loss", "weight_gain", "insomnia", "anxiety",
+    "blurred_vision", "hearing_loss", "seizures", "tremors", "numbness", "swelling",
+    "hair_loss", "dehydration", "sensitivity_to_light", "stiff_neck", "confusion",
 }
 
 

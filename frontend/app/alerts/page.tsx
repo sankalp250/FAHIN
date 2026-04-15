@@ -1,15 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, MapPin, Clock, TrendingUp, BellRing, Filter } from "lucide-react";
-
-const ALERTS = [
-  { id:"1", sector:"Sector-45", city:"Gurugram", disease:"Dengue",     probability:0.84, peakDays:5,  type:"hospital_alert",  status:"delivered", sentAt:"2h ago",  env:"High humidity 88% + AQI 142", severity:"critical" },
-  { id:"2", sector:"Sector-17", city:"Gurugram", disease:"Unknown",    probability:0.72, peakDays:3,  type:"authority_alert", status:"delivered", sentAt:"20m ago", env:"Unusual symptom cluster detected", severity:"high" },
-  { id:"3", sector:"Sector-32", city:"Gurugram", disease:"Influenza",  probability:0.67, peakDays:8,  type:"hospital_alert",  status:"delivered", sentAt:"4h ago",  env:"Seasonal risk elevation", severity:"high" },
-  { id:"4", sector:"Sector-21", city:"Gurugram", disease:"Malaria",    probability:0.51, peakDays:12, type:"hospital_alert",  status:"sent",      sentAt:"1d ago",  env:"Mosquito risk index: 0.73", severity:"moderate" },
-  { id:"5", sector:"Sector-8",  city:"Gurugram", disease:"Dengue",     probability:0.38, peakDays:18, type:"public_alert",    status:"sent",      sentAt:"2d ago",  env:"Rainfall spike detected", severity:"low" },
-];
+import { useState, useEffect } from "react";
+import { AlertTriangle, MapPin, Clock, TrendingUp, BellRing, Filter, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { api, AlertResponse } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthContext";
 
 const SEV = {
   critical: { label:"Critical", bg:"rgba(239,68,68,0.08)",   border:"rgba(239,68,68,0.2)",   accent:"#EF4444",  badge:"rgba(239,68,68,0.12)" },
@@ -19,8 +14,44 @@ const SEV = {
 };
 
 export default function AlertsPage() {
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+  const [alerts, setAlerts] = useState<AlertResponse[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all"|"critical"|"high"|"moderate">("all");
-  const filtered = filter==="all" ? ALERTS : ALERTS.filter(a => a.severity===filter || (filter==="high"&&a.severity==="critical"));
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+      return;
+    }
+    const fetchAlerts = async () => {
+      try {
+        if (!user) return;
+        const data = await api.alerts.active(user.city || "Gurugram");
+        setAlerts(data);
+      } catch (err) {
+        console.error("Failed to fetch alerts", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (user) fetchAlerts();
+  }, [user, authLoading]);
+
+  const filtered = filter==="all" 
+    ? alerts 
+    : alerts.filter(a => {
+        const severity = a.probability >= 0.8 ? "critical" : a.probability >= 0.6 ? "high" : "moderate";
+        return severity === filter || (filter === "high" && severity === "critical");
+      });
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+      <Loader2 className="animate-spin text-accent" size={32} />
+      <p className="text-ink-soft text-sm">Scanning sector status...</p>
+    </div>
+  );
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -29,10 +60,10 @@ export default function AlertsPage() {
           <div className="flex items-center gap-3 mb-1">
             <h1 className="font-display font-bold text-3xl text-ink">Outbreak Alerts</h1>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full text-white" style={{background:"linear-gradient(135deg,#EF4444,#DC2626)"}}>
-              {ALERTS.length} active
+              {alerts.length} active
             </span>
           </div>
-          <p className="text-ink-soft text-sm">AI-predicted outbreaks across Gurugram sectors</p>
+          <p className="text-ink-soft text-sm">AI-predicted outbreaks across {user?.city || "Gurugram"} sectors</p>
         </div>
         <div className="glass rounded-2xl px-4 py-2 flex items-center gap-2">
           <BellRing size={14} color="#F59E0B" />
@@ -58,8 +89,16 @@ export default function AlertsPage() {
 
       {/* Alert cards */}
       <div className="space-y-4">
-        {filtered.map(a => {
-          const s = SEV[a.severity as keyof typeof SEV] ?? SEV.low;
+        {filtered.length === 0 ? (
+          <div className="neu rounded-3xl p-10 bg-surface flex flex-col items-center gap-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-safe/10 flex items-center justify-center">
+              <TrendingUp className="rotate-180" size={24} color="#10B981" />
+            </div>
+            <p className="text-ink font-medium">No outbreaks detected at this severity level.</p>
+          </div>
+        ) : filtered.map(a => {
+          const sevKey = a.probability >= 0.8 ? "critical" : a.probability >= 0.6 ? "high" : a.probability >= 0.4 ? "moderate" : "low";
+          const s = SEV[sevKey as keyof typeof SEV] ?? SEV.low;
           return (
             <div key={a.id}
               className="rounded-3xl p-5 transition-all hover:scale-[1.005]"
@@ -77,13 +116,13 @@ export default function AlertsPage() {
                         {s.label}
                       </span>
                       <span className="text-[10px] font-medium px-2 py-0.5 rounded-full capitalize" style={{background:s.badge,color:s.accent}}>
-                        {a.type.replace(/_/g," ")}
+                        {a.alert_type?.replace(/_/g," ") || "Hospital Alert"}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-ink-soft">
-                      <span className="flex items-center gap-1"><MapPin size={11} />{a.sector}</span>
-                      <span className="flex items-center gap-1"><Clock size={11} />{a.sentAt}</span>
-                      <span className="capitalize px-2 py-0.5 rounded-full text-[10px]" style={{background:"rgba(16,185,129,0.1)",color:"#10B981"}}>{a.status}</span>
+                      <span className="flex items-center gap-1"><MapPin size={11} />{a.city_sector}</span>
+                      <span className="flex items-center gap-1"><Clock size={11} />{new Date(a.sent_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      <span className="capitalize px-2 py-0.5 rounded-full text-[10px]" style={{background:"rgba(16,185,129,0.1)",color:"#10B981"}}>sent</span>
                     </div>
                   </div>
                 </div>
@@ -103,13 +142,13 @@ export default function AlertsPage() {
                 <div className="flex items-center gap-4 text-xs text-ink-soft">
                   <span className="flex items-center gap-1">
                     <TrendingUp size={11} color={s.accent} />
-                    Peak expected in <strong className="text-ink ml-1">{a.peakDays} days</strong>
+                    Peak expected in <strong className="text-ink ml-1">{a.days_until_peak || 5} days</strong>
                   </span>
                   <span>·</span>
-                  <span>{a.env}</span>
+                  <span className="truncate max-w-[300px]">{a.message || "Unusual symptom cluster detected"}</span>
                 </div>
                 <button className="text-xs font-semibold" style={{color:s.accent}}>
-                  View Details →
+                  View Analysis →
                 </button>
               </div>
             </div>

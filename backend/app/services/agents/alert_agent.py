@@ -18,13 +18,22 @@ class AlertAgent:
         disease: str,
         probability: float,
         peak_days: int | None,
+        is_anomaly: bool = False,
     ) -> None:
         peak_str = f"in approximately {peak_days} days" if peak_days else "soon"
+        alert_type = "anomaly_alert" if is_anomaly else "outbreak_alert"
+        
+        prefix = "🚨 ANOMALY DETECTED" if is_anomaly else "⚠️ OUTBREAK ALERT"
+        
         message = (
-            f"⚠️ OUTBREAK ALERT: {disease} predicted in {sector}, {city}. "
+            f"{prefix}: {disease} predicted in {sector}, {city}. "
             f"Probability: {probability:.0%}. Peak expected {peak_str}. "
-            f"Please prepare additional capacity."
         )
+        if is_anomaly:
+            message += "UNUSUAL SYMPTOM PATTERN — MANUAL REVIEW REQUIRED."
+        else:
+            message += "Please prepare additional capacity."
+
         logger.info(f"ALERT: {message}")
 
         async with AsyncSessionLocal() as db:
@@ -44,7 +53,7 @@ class AlertAgent:
             alert = AlertLog(
                 prediction_id=pred.id,
                 city_sector=sector, disease=disease,
-                alert_type="hospital_alert", message=message,
+                alert_type=alert_type, message=message,
             )
             db.add(alert)
             await db.commit()

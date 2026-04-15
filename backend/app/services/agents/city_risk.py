@@ -18,21 +18,53 @@ class CityRiskAgent:
         }
 
     async def _fetch_env_data(self, city: str) -> tuple[float, float, float]:
-        """Fetch AQI from OpenAQ, weather from OpenWeather."""
+        """Fetch AQI and weather data using OpenWeatherMap."""
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # 1. Geocoding: Get Lat/Lon for the city
+                geo_url = f"http://api.openweathermap.org/geo/1.0/direct?q={city}&limit=1&appid={settings.OPENWEATHER_API_KEY}"
+                geo_resp = await client.get(geo_url)
+                if geo_resp.status_code != 200 or not geo_resp.json():
+                    logger.warning(f"Geocoding failed for {city}: {geo_resp.text}")
+                    return 120.0, 30.0, 70.0
+                
+                geo_data = geo_resp.json()[0]
+                lat, lon = geo_data["lat"], geo_data["lon"]
+
+                # 2. Weather: Get Temp and Humidity
+                weather_url = f"https://api.openweathermap.org/data/2.5/weather"
                 weather_resp = await client.get(
-                    "https://api.openweathermap.org/data/2.5/weather",
-                    params={"q": city, "appid": settings.OPENWEATHER_API_KEY, "units": "metric"},
+                    weather_url,
+                    params={"lat": lat, "lon": lon, "appid": settings.OPENWEATHER_API_KEY, "units": "metric"},
                 )
+                
+                # 3. Air Pollution: Get AQI
+                pollution_url = f"http://api.openweathermap.org/data/2.5/air_pollution"
+                pollution_resp = await client.get(
+                    pollution_url,
+                    params={"lat": lat, "lon": lon, "appid": settings.OPENWEATHER_API_KEY},
+                )
+
+                temp, humidity, aqi = 30.0, 70.0, 120.0
+
                 if weather_resp.status_code == 200:
-                    data = weather_resp.json()
-                    temp = data["main"]["temp"]
-                    humidity = data["main"]["humidity"]
-                    return 120.0, temp, humidity  # AQI placeholder
+                    w_data = weather_resp.json()
+                    temp = w_data["main"]["temp"]
+                    humidity = w_data["main"]["humidity"]
+                
+                if pollution_resp.status_code == 200:
+                    p_data = pollution_resp.json()
+                    # OpenWeather AQI is 1-5 (1=Good, 5=Very Poor). 
+                    # We map this roughly to standard US AQI values for our model (e.g. 1->50, 5->300)
+                    ow_aqi = p_data["list"][0]["main"]["aqi"]
+                    aqi_mapping = {1: 30, 2: 70, 3: 130, 4: 180, 5: 300}
+                    aqi = aqi_mapping.get(ow_aqi, 120.0)
+
+                return aqi, temp, humidity
+
         except Exception as e:
-            logger.warning(f"Weather fetch failed: {e}")
-        return 120.0, 32.0, 75.0  # Reasonable defaults for India
+            logger.error(f"Environmental data fetch failed: {e}")
+            return 120.0, 32.0, 75.0  # Reasonable defaults for India
 
     def _compute_mosquito_risk(self, temp: float, humidity: float) -> float:
         """Dengue/malaria mosquito risk index (0-1)."""

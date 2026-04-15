@@ -1,73 +1,98 @@
-"""Autoencoder + Isolation Forest anomaly detection inference."""
+"""
+FAHIN — Anomaly Detection Service
+Uses Autoencoder reconstruction error and Isolation Forest to detect unknown diseases.
+"""
+import torch
+import torch.nn as nn
 import logging
-import numpy as np
-from pathlib import Path
 import json
-import os
+import joblib
+from pathlib import Path
+import numpy as np
 
 logger = logging.getLogger(__name__)
-MODEL_DIR = Path(os.getenv("MODEL_DIR", "../ml/models"))
 
+class SymptomAutoencoder(nn.Module):
+    def __init__(self, input_dim: int = 768):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(256, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(64, 16),
+            nn.ReLU(),
+        )
+        self.decoder = nn.Sequential(
+            nn.Linear(16, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(64, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(256, input_dim),
+            nn.Sigmoid(),
+        )
+    
+    def forward(self, x: torch.Tensor) -> tuple:
+        z = self.encoder(x)
+        x_reconstructed = self.decoder(z)
+        return x_reconstructed, z
 
-class AnomalyDetector:
-    _autoencoder = None
-    _iso_forest = None
-    _scaler = None
-    _threshold: float = 0.05  # default, overridden from metadata
+class AnomalyDetectorService:
+    def __init__(self, model_path: Path):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        with open(model_path / "metadata.json") as f:
+            self.metadata = json.load(f)
+            
+        # 1. Autoencoder
+        self.ae = SymptomAutoencoder(input_dim=self.metadata["input_dim"])
+        state_dict = torch.load(model_path / "autoencoder.pt", map_location=self.device)
+        self.ae.load_state_dict(state_dict)
+        self.ae.to(self.device).eval()
+        self.ae_threshold = self.metadata["autoencoder"]["anomaly_threshold"]
+        
+        # 2. Isolation Forest (as ensemble backup)
+        self.iso_forest = joblib.load(model_path / "isolation_forest.pkl")
+        self.iso_scaler = joblib.load(model_path / "iso_scaler.pkl")
+        
+        logger.info(f"Anomaly Detector loaded on {self.device}")
 
-    @classmethod
-    def load(cls):
-        try:
-            import joblib
-            path = MODEL_DIR / "anomaly_detection"
-            if (path / "isolation_forest.pkl").exists():
-                cls._iso_forest = joblib.load(path / "isolation_forest.pkl")
-                cls._scaler = joblib.load(path / "iso_scaler.pkl")
-                logger.info("Isolation Forest anomaly detector loaded")
-            if (path / "metadata.json").exists():
-                with open(path / "metadata.json") as f:
-                    meta = json.load(f)
-                cls._threshold = meta.get("autoencoder", {}).get("anomaly_threshold", 0.05)
-        except Exception as e:
-            logger.warning(f"Anomaly detector load failed: {e}")
-
-    @classmethod
-    def score(cls, symptom_cluster_vector: list[float]) -> dict:
+    def compute_anomaly_score(self, embedding: list[float]) -> dict:
         """
-        Compute anomaly score for a symptom embedding.
-        Returns score 0-1 and whether it's anomalous.
+        Computes anomaly score (0.0 to 1.0).
+        Score > 0.7 indicates a potentially unknown disease pattern.
         """
-        if cls._iso_forest is not None:
-            return cls._isolation_forest_score(symptom_cluster_vector)
-        return cls._heuristic_score(symptom_cluster_vector)
-
-    @classmethod
-    def _isolation_forest_score(cls, vec: list[float]) -> dict:
-        import numpy as np
-        x = np.array(vec).reshape(1, -1)
-        x_scaled = cls._scaler.transform(x)
-        raw_score = cls._iso_forest.score_samples(x_scaled)[0]
-        # Convert: more negative = more anomalous → map to 0-1
-        normalised = max(0.0, min(1.0, (-raw_score - 0.2) / 0.6))
+        x = torch.tensor([embedding], dtype=torch.float32).to(self.device)
+        
+        # 1. Autoencoder Score
+        with torch.no_grad():
+            x_rec, _ = self.ae(x)
+            mse = ((x - x_rec) ** 2).mean().item()
+        
+        # Normalise AE score relative to threshold (0.5 = at threshold)
+        ae_norm = min(1.0, mse / (self.ae_threshold * 2))
+        
+        # 2. Isolation Forest Score
+        x_scaled = self.iso_scaler.transform([embedding])
+        # score_samples returns negative: more negative = more anomalous
+        iso_raw = self.iso_forest.score_samples(x_scaled)[0]
+        # Typically iso_raw is between -0.8 (anomaly) and -0.4 (normal)
+        iso_norm = np.clip((-(iso_raw + 0.4) / 0.4), 0, 1)
+        
+        # Combined score (weighted)
+        combined = ae_norm * 0.7 + iso_norm * 0.3
+        
         return {
-            "anomaly_score": round(float(normalised), 4),
-            "is_anomalous": normalised > 0.7,
-            "method": "isolation_forest",
+            "anomaly_score": float(combined),
+            "is_anomaly": combined > 0.7,
+            "reconstruction_error": mse,
+            "threshold": self.ae_threshold
         }
-
-    @classmethod
-    def _heuristic_score(cls, vec: list[float]) -> dict:
-        """Statistical fallback: z-score based anomaly detection."""
-        arr = np.array(vec)
-        mean, std = 0.5, 0.15  # expected normal distribution stats
-        z_scores = np.abs((arr - mean) / max(std, 1e-8))
-        anomaly_score = min(1.0, float(z_scores.mean()) / 3.0)
-        return {
-            "anomaly_score": round(anomaly_score, 4),
-            "is_anomalous": anomaly_score > 0.7,
-            "method": "heuristic_zscore",
-        }
-
-
-# Module-level singleton
-_detector = AnomalyDetector()

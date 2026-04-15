@@ -7,34 +7,84 @@ import os
 import joblib
 import json
 from pathlib import Path
+from typing import Optional, List, Dict, Any
+
+from app.services.ml.symptom_embedder import SymptomEmbedderService
+from app.services.ml.outbreak_forecaster import OutbreakForecasterService
+from app.services.ml.anomaly_detector import AnomalyDetectorService
 
 logger = logging.getLogger(__name__)
 
+# Base directory for models
 MODEL_DIR = Path(os.getenv("MODEL_DIR", "../ml/models"))
 
 
 class ModelRegistry:
     """Singleton model store — loaded once at startup."""
+    
+    # Model Instances
     _disease_classifier = None
     _disease_scaler = None
     _disease_label_encoder = None
     _disease_metadata = None
+    
+    _symptom_embedder: Optional[SymptomEmbedderService] = None
+    _outbreak_forecaster: Optional[OutbreakForecasterService] = None
+    _anomaly_detector: Optional[AnomalyDetectorService] = None
+    
     _models_loaded = False
 
     @classmethod
     def load_all_models(cls):
+        """Initialise all models from disk."""
         if cls._models_loaded:
             return
+        
+        # 1. Disease Classifier
         try:
             cls._load_disease_classifier()
         except Exception as e:
-            logger.warning(f"Disease classifier not loaded (run training first): {e}")
+            logger.warning(f"Disease classifier not loaded: {e}")
+            
+        # 2. Symptom Embedder
+        try:
+            path = MODEL_DIR / "symptom_embedding"
+            if path.exists():
+                cls._symptom_embedder = SymptomEmbedderService(path)
+            else:
+                logger.warning("Symptom embedder path not found")
+        except Exception as e:
+            logger.warning(f"Symptom embedder not loaded: {e}")
+            
+        # 3. Outbreak Forecaster
+        try:
+            path = MODEL_DIR / "outbreak_forecast"
+            if path.exists():
+                cls._outbreak_forecaster = OutbreakForecasterService(path)
+            else:
+                logger.warning("Outbreak forecaster path not found")
+        except Exception as e:
+            logger.warning(f"Outbreak forecaster not loaded: {e}")
+            
+        # 4. Anomaly Detector
+        try:
+            path = MODEL_DIR / "anomaly_detection"
+            if path.exists():
+                cls._anomaly_detector = AnomalyDetectorService(path)
+            else:
+                logger.warning("Anomaly detector path not found")
+        except Exception as e:
+            logger.warning(f"Anomaly detector not loaded: {e}")
+
         cls._models_loaded = True
         logger.info("ML Model Registry initialised.")
 
     @classmethod
     def _load_disease_classifier(cls):
         path = MODEL_DIR / "disease_classifier"
+        if not path.exists():
+            raise FileNotFoundError(f"Model directory missing: {path}")
+            
         cls._disease_classifier = joblib.load(path / "ensemble.pkl")
         cls._disease_scaler = joblib.load(path / "scaler.pkl")
         cls._disease_label_encoder = joblib.load(path / "label_encoder.pkl")
@@ -46,7 +96,7 @@ class ModelRegistry:
     def predict_disease(cls, symptom_vector: list[float]) -> dict:
         """Run disease classification inference."""
         if cls._disease_classifier is None:
-            return {"predictions": [{"disease": "Unknown", "probability": 0.5}]}
+            return {"predictions": []}
         import numpy as np
         x = np.array(symptom_vector).reshape(1, -1)
         x_scaled = cls._disease_scaler.transform(x)
@@ -59,6 +109,27 @@ class ModelRegistry:
                 for i in top5_idx
             ]
         }
+
+    @classmethod
+    def embed_symptoms(cls, symptoms: List[str]) -> Optional[List[float]]:
+        """Generate vector embedding for symptoms."""
+        if cls._symptom_embedder:
+            return cls._symptom_embedder.embed(symptoms)
+        return None
+
+    @classmethod
+    def forecast_outbreak(cls, history: List[List[float]]) -> Optional[List[float]]:
+        """Forecast case counts for the next 7 days."""
+        if cls._outbreak_forecaster:
+            return cls._outbreak_forecaster.predict(history)
+        return None
+
+    @classmethod
+    def detect_anomaly(cls, embedding: List[float]) -> Dict[str, Any]:
+        """Detect if symptom pattern is anomalous (unknown disease)."""
+        if cls._anomaly_detector:
+            return cls._anomaly_detector.compute_anomaly_score(embedding)
+        return {"anomaly_score": 0.0, "is_anomaly": False}
 
     @classmethod
     def is_loaded(cls) -> bool:

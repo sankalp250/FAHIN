@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronUp, Send, ShieldCheck, Loader2 } from "lucide-react";
+import { api } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthContext";
 
 const GROUPS: Record<string, string[]> = {
   "🌡️ Fever & Temperature": ["fever","high_fever","mild_fever","chills","shivering","sweating"],
@@ -17,6 +19,7 @@ const GROUPS: Record<string, string[]> = {
 const SEV_LABELS = ["","Minimal","Very Mild","Mild","Moderate","Moderate+","Significant","Severe","Very Severe","Critical","Emergency"];
 
 export default function SymptomsPage() {
+  const { user } = useAuth();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<string>("🌡️ Fever & Temperature");
   const [severity, setSeverity] = useState(5);
@@ -27,12 +30,24 @@ export default function SymptomsPage() {
   const toggle = (s: string) => setSelected(p => { const n = new Set(p); n.has(s) ? n.delete(s) : n.add(s); return n; });
 
   const handleSubmit = async () => {
-    if (!selected.size) return;
+    if (!selected.size || !user) return;
     setSubmitting(true);
-    await new Promise(r => setTimeout(r, 1800));
-    setSubmitting(false);
-    setSubmitted(true);
-    setTimeout(() => { setSubmitted(false); setSelected(new Set()); setSeverity(5); setDuration(1); }, 4000);
+    try {
+      await api.symptoms.report({
+        symptoms: Array.from(selected),
+        severity,
+        duration_days: duration,
+        city_sector: user.city_sector,
+        city: user.city,
+        source: "web_dashboard"
+      });
+      setSubmitted(true);
+      setTimeout(() => { setSubmitted(false); setSelected(new Set()); setSeverity(5); setDuration(1); }, 4000);
+    } catch (err) {
+      console.error("Failed to submit report", err);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) return (
@@ -42,7 +57,7 @@ export default function SymptomsPage() {
       </div>
       <div>
         <h2 className="font-display font-bold text-2xl text-ink mb-2">Report Submitted</h2>
-        <p className="text-ink-soft text-sm max-w-xs">Your symptoms have been anonymously reported. Our AI agents are analysing patterns across Gurugram.</p>
+        <p className="text-ink-soft text-sm max-w-xs">Your symptoms have been anonymously reported. Our AI agents are analysing patterns across {user?.city_sector || "your sector"}.</p>
       </div>
       <div className="glass rounded-3xl px-6 py-4 flex items-center gap-3">
         <ShieldCheck size={18} color="#10B981" />
@@ -62,7 +77,7 @@ export default function SymptomsPage() {
       {/* Privacy badge */}
       <div className="glass rounded-2xl p-3 flex items-center gap-3 mb-6">
         <ShieldCheck size={16} color="#10B981" />
-        <span className="text-xs text-ink-soft flex-1">Only your city sector is recorded — <strong className="text-safe">never your exact address or name</strong></span>
+        <span className="text-xs text-ink-soft flex-1">Only your sector (<strong className="text-safe">{user?.city_sector}</strong>) is recorded — <strong className="text-safe">never your exact address or name</strong></span>
       </div>
 
       {/* Symptom groups */}

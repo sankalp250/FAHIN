@@ -3,7 +3,7 @@ FAHIN — LangChain Agent Orchestrator
 Uses LangGraph to chain 5 agents in a directed workflow.
 """
 
-from langchain_openai import ChatOpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, END
 from typing import TypedDict, List, Optional
 import logging
@@ -64,10 +64,10 @@ class OutbreakDetectionState(TypedDict):
 
 # --- Instantiate Agents ---
 
-llm = ChatOpenAI(
+llm = ChatGoogleGenerativeAI(
     model=settings.LLM_MODEL,
-    api_key=settings.OPENAI_API_KEY,
-    temperature=0.1,  # Low temperature for medical reasoning
+    google_api_key=settings.GEMINI_API_KEY,
+    temperature=0.1,
 )
 
 privacy_guardian = PrivacyGuardianAgent()
@@ -175,6 +175,7 @@ async def run_alert_agent(state: OutbreakDetectionState) -> OutbreakDetectionSta
             disease=state["predicted_disease"],
             probability=state["outbreak_probability"],
             peak_days=state.get("predicted_peak_days"),
+            is_anomaly=state.get("anomaly_detected", False),
         )
         state["alert_sent"] = True
     except Exception as e:

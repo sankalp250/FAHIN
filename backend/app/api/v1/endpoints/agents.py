@@ -8,7 +8,7 @@ AGENTS = [
     "PrivacyGuardian","SymptomIntelligence","CityRisk","MedicalKnowledge","OutbreakPrediction"
 ]
 
-@router.get("/agents/status")
+@router.get("/status")
 async def get_agent_status():
     return {
         "agents": [

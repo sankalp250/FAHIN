@@ -7,9 +7,10 @@ from .city_sensor import CitySensorData
 from .outbreak_prediction import OutbreakPrediction
 from .federated_update import FederatedUpdate
 from .alert_log import AlertLog
+from .medical_knowledge import MedicalKnowledge
 
 __all__ = [
     "User","SymptomReport","PrescriptionRecord","MedicineSale",
     "HospitalStat","CitySensorData","OutbreakPrediction",
-    "FederatedUpdate","AlertLog",
+    "FederatedUpdate","AlertLog","MedicalKnowledge",
 ]

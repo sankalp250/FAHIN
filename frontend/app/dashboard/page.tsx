@@ -1,27 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, Activity, MapPin, Brain, Thermometer, Wind, Droplets, ChevronRight, Zap, Clock } from "lucide-react";
+import { AlertTriangle, Activity, MapPin, Brain, Thermometer, Wind, Droplets, ChevronRight, Zap, Clock, Loader2, RefreshCcw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
+import { useAuth } from "@/components/providers/AuthContext";
 
 interface SectorRisk { sector: string; disease: string; probability: number; trend: "rising" | "stable" | "falling"; reports: number; }
-interface Alert { id: string; sector: string; disease: string; probability: number; peakDays: number; age: string; }
-
-const SECTORS: SectorRisk[] = [
-  { sector: "Sector-45", disease: "Dengue",       probability: 0.84, trend: "rising",  reports: 312 },
-  { sector: "Sector-32", disease: "Influenza",    probability: 0.67, trend: "rising",  reports: 187 },
-  { sector: "Sector-17", disease: "Unknown",      probability: 0.72, trend: "rising",  reports: 94  },
-  { sector: "Sector-21", disease: "Malaria",      probability: 0.51, trend: "stable",  reports: 143 },
-  { sector: "Sector-8",  disease: "Dengue",       probability: 0.38, trend: "falling", reports: 78  },
-  { sector: "Sector-3",  disease: "Typhoid",      probability: 0.29, trend: "stable",  reports: 55  },
-  { sector: "Sector-56", disease: "Respiratory",  probability: 0.15, trend: "falling", reports: 31  },
-  { sector: "Sector-12", disease: "—",            probability: 0.07, trend: "stable",  reports: 12  },
-];
-
-const ALERTS: Alert[] = [
-  { id: "1", sector: "Sector-45", disease: "Dengue",    probability: 0.84, peakDays: 5, age: "2h ago" },
-  { id: "2", sector: "Sector-17", disease: "Unknown",   probability: 0.72, peakDays: 3, age: "20m ago" },
-  { id: "3", sector: "Sector-32", disease: "Influenza", probability: 0.67, peakDays: 8, age: "4h ago" },
-];
+interface Alert { id: string; sector: string; disease: string; probability: number; peakDays: number; sent_at: string; }
 
 function getRisk(p: number) {
   if (p >= 0.8) return { label: "Critical", color: "#EF4444" };
@@ -38,8 +24,73 @@ function barColor(p: number) {
 }
 
 export default function DashboardPage() {
+  const { user, token, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const [time, setTime] = useState(new Date());
+  const [sectors, setSectors] = useState<SectorRisk[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => { const t = setInterval(() => setTime(new Date()), 10000); return () => clearInterval(t); }, []);
+
+  const fetchData = async () => {
+    try {
+      setRefreshing(true);
+      const city = user?.city || "Gurugram";
+      
+      const [heatmapData, statsData, alertsData] = await Promise.all([
+        api.dashboard.heatmap(city),
+        api.dashboard.stats(city),
+        api.alerts.active(city)
+      ]);
+
+      if (heatmapData && heatmapData.sectors) {
+        setSectors(heatmapData.sectors.map((s: any) => ({
+          sector: s.sector,
+          disease: s.top_disease || "Scanning...",
+          probability: s.risk_score,
+          trend: s.trend as any,
+          reports: s.report_count_7d
+        })));
+      }
+
+      setStats(statsData);
+      
+      if (alertsData) {
+        setAlerts(alertsData.map((a: any) => ({
+          id: a.id,
+          sector: a.city_sector,
+          disease: a.disease,
+          probability: a.probability,
+          peakDays: a.days_until_peak || 5,
+          sent_at: a.sent_at
+        })));
+      }
+
+    } catch (err) {
+      console.error("Failed to fetch dashboard data", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+    } else if (user) {
+      fetchData();
+    }
+  }, [user, authLoading]);
+
+  if (authLoading || (loading && !stats)) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+      <Loader2 className="animate-spin text-accent" size={40} />
+      <p className="text-ink-soft font-medium">Synchronizing intelligence nodes...</p>
+    </div>
+  );
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -47,24 +98,33 @@ export default function DashboardPage() {
       <div className="mb-8 flex items-start justify-between">
         <div>
           <h1 className="font-display font-bold text-3xl text-ink">City Dashboard</h1>
-          <p className="text-ink-soft mt-1 text-sm">Gurugram · Federated Health Intelligence</p>
+          <p className="text-ink-soft mt-1 text-sm">{user?.city || "Gurugram"} · Federated Health Intelligence</p>
         </div>
-        <div className="glass rounded-2xl px-4 py-2.5 flex items-center gap-2.5">
-          <Clock size={13} color="#64748B" />
-          <span className="text-xs text-ink-soft font-medium">{time.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</span>
-          <span className="text-ink-soft/40">·</span>
-          <span className="w-1.5 h-1.5 rounded-full bg-safe animate-pulse" />
-          <span className="text-xs text-safe font-medium">Live</span>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={fetchData} 
+            disabled={refreshing}
+            className="neu-sm w-10 h-10 rounded-2xl flex items-center justify-center bg-surface hover:scale-105 transition-transform"
+          >
+            <RefreshCcw size={16} className={refreshing ? "animate-spin text-accent" : "text-ink-soft"} />
+          </button>
+          <div className="glass rounded-2xl px-4 py-2.5 flex items-center gap-2.5">
+            <Clock size={13} color="#64748B" />
+            <span className="text-xs text-ink-soft font-medium">{time.toLocaleTimeString("en-IN",{hour:"2-digit",minute:"2-digit"})}</span>
+            <span className="text-ink-soft/40">·</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-safe animate-pulse" />
+            <span className="text-xs text-safe font-medium">Live</span>
+          </div>
         </div>
       </div>
 
       {/* Stats row */}
       <div className="grid grid-cols-4 gap-4 mb-8">
         {[
-          { icon: AlertTriangle, label: "Active Alerts",     value: "3",     sub: "Requires action",    accent: "#EF4444" },
-          { icon: MapPin,        label: "High-Risk Sectors", value: "3",     sub: "Probability > 60%",  accent: "#F97316" },
-          { icon: Activity,      label: "Reports Today",     value: "1,842", sub: "Citizens + pharma",  accent: "#3B82F6" },
-          { icon: Brain,         label: "Models Online",     value: "4/4",   sub: "FL round 14 active", accent: "#8B5CF6" },
+          { icon: AlertTriangle, label: "Active Alerts",     value: stats?.active_alerts || 0,     sub: "Requires action",    accent: "#EF4444" },
+          { icon: MapPin,        label: "High-Risk Sectors", value: sectors.filter(s => s.probability > 0.6).length,     sub: "Probability > 60%",  accent: "#F97316" },
+          { icon: Activity,      label: "Reports Today",     value: stats?.total_reports_today || 0, sub: "Citizens + pharma",  accent: "#3B82F6" },
+          { icon: Brain,         label: "Models Online",     value: `${stats?.models_online || 0}/4`,   sub: `FL round ${stats?.fl_round_current || 0} active`, accent: "#8B5CF6" },
         ].map(({ icon: Icon, label, value, sub, accent }) => (
           <div key={label} className="neu rounded-3xl p-5 bg-surface flex flex-col gap-3">
             <div className="flex items-center justify-between">
@@ -105,10 +165,10 @@ export default function DashboardPage() {
         <div className="col-span-2 neu rounded-3xl p-6 bg-surface">
           <div className="flex items-center justify-between mb-5">
             <h2 className="font-display font-semibold text-xl text-ink">Sector Risk Heatmap</h2>
-            <span className="text-xs text-ink-soft bg-black/5 rounded-xl px-3 py-1">Updated 5m ago</span>
+            <span className="text-xs text-ink-soft bg-black/5 rounded-xl px-3 py-1">Updated just now</span>
           </div>
           <div className="grid grid-cols-4 gap-3">
-            {SECTORS.map(s => {
+            {sectors.map(s => {
               const { label, color } = getRisk(s.probability);
               return (
                 <div key={s.sector} className="bg-bg rounded-2xl p-3 neu-sm hover:scale-105 transition-transform cursor-pointer">
@@ -132,13 +192,6 @@ export default function DashboardPage() {
               );
             })}
           </div>
-          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-black/5">
-            <span className="text-[10px] text-ink-soft mr-1">Risk:</span>
-            {["Safe","Low","Moderate","High","Critical"].map((l,i) => {
-              const colors=["#10B981","#3B82F6","#F59E0B","#F97316","#EF4444"];
-              return <span key={l} className="text-[10px] font-bold text-white px-2 py-0.5 rounded-full" style={{background:colors[i]}}>{l}</span>;
-            })}
-          </div>
         </div>
 
         {/* Right panel */}
@@ -147,12 +200,13 @@ export default function DashboardPage() {
           <div className="neu rounded-3xl p-5 bg-surface">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display font-semibold text-ink">Active Alerts</h2>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"rgba(239,68,68,0.12)",color:"#EF4444"}}>{ALERTS.length}</span>
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{background:"rgba(239,68,68,0.12)",color:"#EF4444"}}>{alerts.length}</span>
             </div>
             <div className="space-y-3">
-              {ALERTS.map(a => {
-                const sev = a.probability>=0.8?"high":a.probability>=0.6?"medium":"low";
-                const ac = {high:"#EF4444",medium:"#F97316",low:"#F59E0B"}[sev];
+              {alerts.length === 0 ? (
+                <p className="text-xs text-ink-soft text-center py-4">No active alerts for this city.</p>
+              ) : alerts.map(a => {
+                const ac = a.probability>=0.8?"#EF4444":a.probability>=0.6?"#F97316":"#F59E0B";
                 return (
                   <div key={a.id} className="rounded-2xl p-3 flex items-center gap-3" style={{background:`${ac}08`,border:`1px solid ${ac}25`}}>
                     <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{background:`${ac}18`}}>
@@ -163,28 +217,6 @@ export default function DashboardPage() {
                       <div className="text-[11px] text-ink-soft">{a.sector} · peak in {a.peakDays}d</div>
                     </div>
                     <div className="font-display font-bold text-lg flex-shrink-0" style={{color:ac}}>{Math.round(a.probability*100)}%</div>
-                  </div>
-                );
-              })}
-            </div>
-            <button className="btn-pill btn-accent w-full mt-4 text-sm flex items-center justify-center gap-1.5">
-              View All <ChevronRight size={14} />
-            </button>
-          </div>
-
-          {/* 7-day forecast */}
-          <div className="neu rounded-3xl p-5 bg-surface">
-            <h2 className="font-display font-semibold text-ink mb-4">7-Day Forecast</h2>
-            <div className="space-y-3">
-              {SECTORS.slice(0,5).map(s => {
-                const { color } = getRisk(s.probability);
-                return (
-                  <div key={s.sector} className="flex items-center gap-3">
-                    <span className="text-xs text-ink-soft w-20 truncate">{s.sector}</span>
-                    <div className="flex-1 h-1.5 bg-black/8 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{width:`${Math.round(s.probability*100)}%`,background:color}} />
-                    </div>
-                    <span className="text-xs font-bold text-ink w-8 text-right">{Math.round(s.probability*100)}%</span>
                   </div>
                 );
               })}
