@@ -1,63 +1,41 @@
-"""
-FAHIN — Application Configuration
-"""
-
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
-
+import os
 
 class Settings(BaseSettings):
-    # App
     APP_NAME: str = "FAHIN"
-    DEBUG: bool = False
+    DEBUG: bool = True
+    
+    # Auth
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
-
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 1 week
+    
     # Database
     DATABASE_URL: str
     
-    # Supabase
+    # AI Keys
+    GEMINI_API_KEY: str
+    SARVAM_API_KEY: str = ""
+    SARVAM_OCR_URL: str = "https://api.sarvam.ai/ocr/v1/extract"
+    
+    # Supabase (for storage/auth secondary)
     SUPABASE_URL: str
     SUPABASE_KEY: str
-    SUPABASE_SERVICE_KEY: str = ""
-
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379"
-
-    # Google Gemini
-    GEMINI_API_KEY: str = ""
-    LLM_MODEL: str = "gemini-1.5-flash"
-    EMBEDDING_MODEL: str = "models/text-embedding-004"
-
-    # OpenAI (Legacy fallback / Not used)
-    OPENAI_API_KEY: str = ""
-
-    # Flower FL Server
-    FLOWER_SERVER_ADDRESS: str = "0.0.0.0:8080"
-
+    
+    # Outbreak Alert Thresholds
+    OUTBREAK_ALERT_THRESHOLD: float = 0.70
+    
     # External APIs
-    OPENAQ_API_KEY: str = ""
     OPENWEATHER_API_KEY: str = ""
-
-    # Alert thresholds
-    OUTBREAK_ALERT_THRESHOLD: float = 0.70  # 70% probability triggers alert
-    ANOMALY_ALERT_THRESHOLD: float = 3.0    # 3 sigma above baseline
-
+    OPENAQ_API_KEY: str = ""
+    
     # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:3001"]
-    ALLOWED_HOSTS: List[str] = ["*"]
+    ALLOWED_ORIGINS: List[str] = ["*"]
 
-    # ML Model paths
-    MODEL_DIR: str = "../ml/models"
-    DISEASE_CLASSIFIER_PATH: str = "../ml/models/disease_classifier/ensemble.pkl"
-    OUTBREAK_FORECASTER_PATH: str = "../ml/models/outbreak_forecast/lstm.pt"
-    ANOMALY_DETECTOR_PATH: str = "../ml/models/anomaly_detection/autoencoder.pt"
-    SYMPTOM_EMBEDDER_PATH: str = "../ml/models/symptom_embedding/model.pt"
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="allow"
+    )
 
 settings = Settings()

@@ -1,46 +1,32 @@
-"""
-FAHIN — Database Session Management
-Async SQLAlchemy with PostgreSQL (Supabase)
-"""
-
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from app.core.config import settings
-import logging
-
-logger = logging.getLogger(__name__)
-
-
-class Base(DeclarativeBase):
-    pass
-
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,
-    connect_args={"statement_cache_size": 0},
+    echo=True,
+    future=True,
 )
 
 AsyncSessionLocal = async_sessionmaker(
-    engine,
+    bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autoflush=False,
-    autocommit=False,
 )
 
-
 async def get_db():
-    """FastAPI dependency — yields an async DB session."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
         finally:
             await session.close()
+
+# Helper for migrations/setup
+async def drop_all_tables():
+    from sqlalchemy import text
+    async with engine.begin() as conn:
+        # This is a bit aggressive but user said "start fresh"
+        # We'll drop public schema tables
+        await conn.execute(text("DROP SCHEMA public CASCADE;"))
+        await conn.execute(text("CREATE SCHEMA public;"))
+        await conn.execute(text("GRANT ALL ON SCHEMA public TO postgres;"))
+        await conn.execute(text("GRANT ALL ON SCHEMA public TO public;"))

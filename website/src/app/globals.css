@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #EEF0F5;
+  --color-surface: #F8F9FC;
+  --color-accent: #F59E0B;
+  --color-ink: #1E293B;
+  --color-ink-soft: #64748B;
+  --color-safe: #10B981;
+  --color-warn: #F97316;
+  --color-danger: #EF4444;
+
+  --font-display: "Sora", sans-serif;
+  --font-body: "DM Sans", sans-serif;
+}
+
+:root {
+  --background: #EEF0F5;
+  --foreground: #1E293B;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  transition: background-color 0.3s ease;
+}
+
+@layer components {
+  .neu {
+    box-shadow: 6px 6px 12px #d1d4dc, 
+               -6px -6px 12px #ffffff;
+  }
+
+  .neu-inset {
+    box-shadow: inset 4px 4px 8px #d1d4dc, 
+                inset -4px -4px 8px #ffffff;
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.08);
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+@layer utilities {
+  .slider-thumb-accent::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: var(--color-accent);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+    border: 3px solid white;
+  }
+}

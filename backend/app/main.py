@@ -1,38 +1,27 @@
-"""FAHIN Backend — FastAPI Application Entry Point."""
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from contextlib import asynccontextmanager
-import logging
-
 from app.core.config import settings
-from app.core.logging import setup_logging
 from app.api.v1.router import api_router
-from app.services.ml.model_registry import ModelRegistry
-
-setup_logging()
-logger = logging.getLogger(__name__)
-
+from app.services.ml.model_registry import model_registry
+import uvicorn
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting FAHIN API server...")
-    ModelRegistry.load_all_models()
-    logger.info("ML models loaded.")
+    # Load ML models on startup
+    print(f"Starting {settings.APP_NAME}...")
+    model_registry.load_all_models()
     yield
-    logger.info("Shutting down FAHIN API server.")
-
+    # Clean up on shutdown
+    print(f"Shutting down {settings.APP_NAME}...")
 
 app = FastAPI(
-    title="FAHIN — Federated Agentic Health Intelligence Network",
-    description="City-wide AI disease outbreak detection. Privacy-preserving via federated learning.",
-    version="1.0.0",
+    title=settings.APP_NAME,
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    debug=settings.DEBUG
 )
 
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -40,22 +29,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.ALLOWED_HOSTS)
 
-# Single include — all routes via api_router
+# Include API Router
 app.include_router(api_router, prefix="/api/v1")
 
-
-@app.get("/health", tags=["Health"])
-async def health_check():
+@app.get("/")
+async def root():
     return {
-        "status": "healthy",
-        "service": "FAHIN API",
-        "version": "1.0.0",
-        "models_loaded": ModelRegistry.is_loaded(),
+        "message": f"Welcome to {settings.APP_NAME} API",
+        "status": "online",
+        "version": "v3.0.0"
     }
 
-
-@app.get("/", tags=["Root"])
-async def root():
-    return {"message": "FAHIN API", "docs": "/docs", "health": "/health"}
+if __name__ == "__main__":
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
